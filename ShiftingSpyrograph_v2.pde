@@ -28,6 +28,8 @@ color   trailColor  = color(240, 240, 0); // Color of the trial if rainbow is fa
 boolean drawGUI = true;
 color   background = color(30);
 boolean DEBUG = false;
+
+String saveFile = "settings.json";
 // END OF SETTINGS
 
 
@@ -114,6 +116,13 @@ void setup() {
        .setSize(200, 19)
        .hide();
        
+    cp5.addButton("exportSettings")
+       .setPosition(100, 190)
+       .setSize(90, 19);
+    cp5.addButton("importSettings")
+       .setPosition(210, 190)
+       .setSize(90, 19);
+       
     
     Group gen = cp5.addGroup("generalSettings")
        .setPosition(100, 250)
@@ -173,10 +182,11 @@ void draw() {
       log("Updating disc with index "+i);
       if (i==0)
         discs[i].update();
-      else
+      else {
         discs[i].update(discs[i-1]);
+      }
+      discs[discs.length-1].display();
     }
-    discs[discs.length-1].display();
     framesRun++;
     
     if (isRecording)
@@ -228,6 +238,61 @@ public void stopVideo() {
   cp5.get("stopVideo").hide();
 }
 
+public void exportSettings() {
+  JSONObject savedata = new JSONObject();
+  
+  savedata.setBoolean("drawCircle", drawCircle);
+  savedata.setBoolean("rainbow", rainbow);
+  savedata.setBoolean("fade", fade);
+  
+  savedata.setInt("trailLength", trailLength);
+  savedata.setInt("trailColor", trailColor);
+  savedata.setFloat("dotDistance", dotDistance);
+  
+  JSONArray savediscs = new JSONArray();
+  for (int i=0; i<discs.length; i++) {
+    JSONObject d = new JSONObject();
+    //radius, speed, angle
+    d.setFloat("radius", discs[i].radius);
+    d.setFloat("speed", discs[i].speed);
+    d.setFloat("angle", discs[i].phi);
+    savediscs.setJSONObject(i, d);
+  }  
+  savedata.setJSONArray("savediscs", savediscs);
+  
+  saveJSONObject(savedata, dataPath(saveFile));
+}
+
+public void importSettings() {
+  JSONObject savedata = loadJSONObject(dataPath(saveFile));
+  
+  drawCircle  = savedata.getBoolean("drawCircle");
+  rainbow     = savedata.getBoolean("rainbow");
+  fade        = savedata.getBoolean("fade");
+  
+  ((Toggle)cp5.get("rainbow")).setState(rainbow);
+  ((Toggle)cp5.get("drawCircle")).setState(drawCircle);
+  ((Toggle)cp5.get("fade")).setState(fade);
+  
+  trailLength = savedata.getInt("trailLength");
+  trailColor  = savedata.getInt("trailColor");
+  dotDistance = savedata.getFloat("dotDistance");
+  
+  cp5.get("trailLength").setValue(trailLength);
+  ((ColorWheel)cp5.get("trailColor")).setRGB(trailColor);
+  cp5.get("dotDistance").setValue(dotDistance);
+  
+  JSONArray savediscs = savedata.getJSONArray("savediscs");
+  int l = discs.length;
+  for (int i=0; i<l; i++) {
+    removeDisc();
+  }
+  for (int i=0; i<savediscs.size(); i++) {
+    JSONObject d = savediscs.getJSONObject(i);
+    addDisc(d.getFloat("radius"), d.getFloat("speed"), d.getFloat("angle"));
+  }
+}
+
 void controlEvent(ControlEvent theEvent) {
   if(isInit) {
     isInit = false;
@@ -256,9 +321,14 @@ void controlEvent(ControlEvent theEvent) {
 }
 
 public void addDisc() {
+  addDisc(100, 100, 0);
+}
+
+public void addDisc(float r, float s, float a) {
   int index = discs.length;
   discs = (disc[])expand(discs, index+1);
-  discs[index] = new disc(100, 100);
+  discs[index] = new disc(r, s);
+  discs[index].phi = a;
   createDiscSettings(index);
 }
 
@@ -341,8 +411,8 @@ class disc {
     dotLocation.x = circleLocation.x + ((this.radius * dotDistance) - (dotSize/2)) * sin(radians(alpha));
     dotLocation.y = circleLocation.y + ((this.radius * dotDistance) - (dotSize/2)) * cos(radians(alpha));
 
-    phi += speed / 100;
-    alpha += omega / 100;
+    phi += speed / 50;
+    alpha += omega / 50;
 
     if (drawCircle) {
       strokeWeight(circleThickness);
@@ -366,10 +436,12 @@ class disc {
     }
 
     drawn[0] = new PVector(dotLocation.x, dotLocation.y);
-    float red = sin(framesRun*rFreq)*127 + 128;
-    float grn = sin(framesRun*rFreq+rDist)*127 + 128;
-    float blu = sin(framesRun*rFreq+2*rDist)*127 + 128;
-    colors[0] = color(int(red), int(grn), int(blu));
+    if (rainbow) {
+      float red = sin(framesRun*rFreq)*127 + 128;
+      float grn = sin(framesRun*rFreq+rDist)*127 + 128;
+      float blu = sin(framesRun*rFreq+2*rDist)*127 + 128;
+      colors[0] = color(int(red), int(grn), int(blu));
+    }
     for (int i=drawn.length-1; i>0; i--) {
       if (i>=drawn.length)
         break;
@@ -394,15 +466,16 @@ class disc {
         } else {
           stroke(trailColor, alp);
         }
-        line(drawn[i].x, drawn[i].y, drawn[i+1].x, drawn[i+1].y);
+        if (drawn[i].dist(drawn[i+1]) < 100) // ignore dots that are too far apart; they don't belong here
+          line(drawn[i].x, drawn[i].y, drawn[i+1].x, drawn[i+1].y);
       }
     }
 
-
-    fill(255, 255, 255, dotOpacity);
-    strokeWeight(2);
-    if (drawCircle)
+    if (drawCircle) {
+      fill(255, 255, 255, dotOpacity);
+      strokeWeight(2);
       circle(dotLocation.x, dotLocation.y, dotSize);
+    }
   }
 }
 
