@@ -75,12 +75,12 @@ PVector center;
 boolean isRunning = true;
 int framesRun = 0;
 boolean isInit = false;
-
+boolean isRecording = false;
 
 void setup() {
   fullScreen();
   //size(1280, 720);
-  frameRate(120);
+  frameRate(60);
 
   center = new PVector(width/2, height/2);
   
@@ -102,9 +102,21 @@ void setup() {
        .setPosition(210, 130)
        .setSize(90, 19);
        
+    cp5.addButton("screenshot")
+       .setPosition(100, 160)
+       .setSize(200, 19);
+       
+    cp5.addButton("startVideo")
+       .setPosition(100, 160)
+       .setSize(200, 19);
+    cp5.addButton("stopVideo")
+       .setPosition(100, 160)
+       .setSize(200, 19)
+       .hide();
+       
     
     Group gen = cp5.addGroup("generalSettings")
-       .setPosition(100, 200)
+       .setPosition(100, 250)
        .setBackgroundColor(color(255, 50))
        .setSize(200, 300)
        .disableCollapse();
@@ -166,6 +178,9 @@ void draw() {
     }
     discs[discs.length-1].display();
     framesRun++;
+    
+    if (isRecording)
+      saveFrame(dataPath("output/frame_#####.tif"));
   }
   
   // Show "frame" count
@@ -188,6 +203,30 @@ public void stop() {
  isRunning = false;
 }
 
+public void screenshot() {
+  save("screenshot.png");
+}
+
+public void startVideo() {
+  File fp = new File(dataPath("output"));
+  println(fp);
+  String[]entries = fp.list();
+  if (entries != null) {
+    for(String s: entries){
+        File currentFile = new File(fp.getPath(),s);
+        currentFile.delete();
+    }
+  }
+  isRecording = true;
+  cp5.get("startVideo").hide();
+  cp5.get("stopVideo").show();
+}
+
+public void stopVideo() {
+  isRecording = false;
+  cp5.get("startVideo").show();
+  cp5.get("stopVideo").hide();
+}
 
 void controlEvent(ControlEvent theEvent) {
   if(isInit) {
@@ -227,7 +266,7 @@ public void createDiscSettings(int index) {
   isInit = false;
   Group g = cp5.addGroup("discGroup"+index)
      .registerProperty(str(index))
-     .setPosition(100, 550 + 120*index)
+     .setPosition(100, 600 + 120*index)
      .setBackgroundHeight(100)
      .setBackgroundColor(color(255, 50))
      .setSize(200, 100)
@@ -302,8 +341,8 @@ class disc {
     dotLocation.x = circleLocation.x + ((this.radius * dotDistance) - (dotSize/2)) * sin(radians(alpha));
     dotLocation.y = circleLocation.y + ((this.radius * dotDistance) - (dotSize/2)) * cos(radians(alpha));
 
-    phi += speed / frameRate;
-    alpha += omega / frameRate;
+    phi += speed / 100;
+    alpha += omega / 100;
 
     if (drawCircle) {
       strokeWeight(circleThickness);
